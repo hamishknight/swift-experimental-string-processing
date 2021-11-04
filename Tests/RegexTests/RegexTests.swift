@@ -170,8 +170,12 @@ class RegexTests: XCTestCase {
           ")ab(+" -> rparen ｢ab｣ lparen plus
         """
     func performTest(_ input: String, _ expecting: Token.Kind...) {
-      XCTAssertEqual(
-        expecting, Lexer(Source(input)).map { $0.kind })
+      var lexer = Lexer(Source(input))
+      var tokens = [Token.Kind]()
+      while let tok = try! lexer.eat() {
+        tokens.append(tok.kind)
+      }
+      XCTAssertEqual(tokens, expecting)
     }
 
     // Gramatically valid

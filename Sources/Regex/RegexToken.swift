@@ -9,6 +9,12 @@ struct Source {
   func peek() -> Character? { state.first }
   mutating func eat() -> Character { state.eat() }
 
+  mutating func eat(_ c: Character) -> Bool {
+    guard peek() == c else { return false }
+    _ = state.eat()
+    return true
+  }
+
   var isEmpty: Bool { state.isEmpty }
 
   typealias Location = String.Index
@@ -53,6 +59,7 @@ extension Token {
     case setOperator(SetOperator)
     case character(Character, isEscaped: Bool)
     case unicodeScalar(UnicodeScalar)
+    case characterClass(CharacterClass)
   }
 
   enum SetOperator: String, Hashable {
@@ -98,6 +105,7 @@ extension Token.Kind: CustomStringConvertible {
     case .setOperator(let op): return op.description
     case .character(let c, _): return c.halfWidthCornerQuoted
     case .unicodeScalar(let u): return "U\(u.halfWidthCornerQuoted)"
+    case .characterClass(let cc): return cc.description
     }
   }
 }

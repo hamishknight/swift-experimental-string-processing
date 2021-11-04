@@ -18,35 +18,36 @@ extension Lexer {
   }
 
   /// Grab the next token without consuming it, if there is one
-  mutating func peek() -> Token? {
+  mutating func peek() throws -> Token? {
     if let tok = nextToken { return tok }
     guard !source.isEmpty else { return nil }
-    advance()
+    try advance()
     return nextToken.unsafelyUnwrapped
   }
 
   /// Eat a token, returning it (unless we're at the end)
   @discardableResult
-  mutating func eat() -> Token? {
-    defer { advance() }
-    return peek()
+  mutating func eat() throws -> Token? {
+    let tok = try peek()
+    try advance()
+    return tok
   }
 
   /// Eat the specified token if there is one. Returns whether anything happened
-  mutating func tryEat(_ tok: Token.Kind) -> Bool {
-    guard peek()?.kind == tok else { return false }
-    advance()
+  mutating func tryEat(_ tok: Token.Kind) throws -> Bool {
+    guard try peek()?.kind == tok else { return false }
+    try advance()
     return true
   }
 
   /// Try to eat a token, throwing if we don't see what we're expecting.
   mutating func eat(expecting tok: Token.Kind) throws {
-    guard tryEat(tok) else { throw "Expected \(tok)" }
+    guard try tryEat(tok) else { throw "Expected \(tok)" }
   }
 
   /// Try to eat a token, asserting we saw what we expected
-  mutating func eat(asserting tok: Token.Kind) {
-    let expected = tryEat(tok)
+  mutating func eat(asserting tok: Token.Kind) throws {
+    let expected = try tryEat(tok)
     assert(expected)
   }
 
@@ -64,39 +65,260 @@ extension Lexer {
   private mutating func consumeUnicodeScalar(
     firstDigit: Character? = nil,
     digits digitCount: Int
-  ) -> UnicodeScalar {
+  ) throws -> UnicodeScalar {
     var digits = firstDigit.map(String.init) ?? ""
     for _ in digits.count ..< digitCount {
-      assert(!source.isEmpty, "Exactly \(digitCount) hex digits required")
+      guard !source.isEmpty else {
+        throw "Exactly \(digitCount) hex digits required"
+      }
       digits.append(source.eat())
     }
 
     guard let value = UInt32(digits, radix: 16),
           let scalar = UnicodeScalar(value)
-    else { fatalError("Invalid unicode sequence") }
+    else { throw "Invalid unicode sequence" }
     
     return scalar
   }
   
-  private mutating func consumeUnicodeScalar() -> UnicodeScalar {
+  private mutating func consumeUnicodeScalar() throws -> UnicodeScalar {
     var digits = ""
     // Eat a maximum of 9 characters, the last of which must be the terminator
     for _ in 0..<9 {
-      assert(!source.isEmpty, "Unterminated unicode value")
+      guard !source.isEmpty else { throw "Unterminated unicode value" }
       let next = source.eat()
       if next == "}" { break }
       digits.append(next)
-      assert(digits.count <= 8, "Maximum 8 hex values required")
+      guard digits.count <= 8 else { throw "Maximum 8 hex values required" }
     }
     
     guard let value = UInt32(digits, radix: 16),
           let scalar = UnicodeScalar(value)
-    else { fatalError("Invalid unicode sequence") }
+    else { throw "Invalid unicode sequence" }
     
     return scalar
   }
 
-  private mutating func consumeEscapedCharacter() -> Token.Kind {
+  private func normalizeForCharacterPropertyMatching(_ str: String) -> String {
+    // This follows the rules provided by UAX44-LM3, except the dropping
+    // of an "is" prefix, which UTS#18 RL1.2 states isn't a requirement.
+    return str.filter { !$0.isWhitespace && $0 != "_" && $0 != "-" }
+              .lowercased()
+  }
+
+  private func getGeneralCategory(
+    _ str: String
+  ) -> CharacterClass.Property.GeneralCategory? {
+    switch normalizeForCharacterPropertyMatching(str) {
+    case "c", "other":
+      return .other
+    case "cc", "control", "cntrl":
+      return .control
+    case "cf", "format":
+      return .format
+    case "cn", "unassigned":
+      return .unassigned
+    case "co", "privateuse":
+      return .privateUse
+    case "cs", "surrogate":
+      return .surrogate
+    case "l", "letter":
+      return .letter
+    case "lc", "casedletter":
+      return .casedLetter
+    case "ll", "lowercaseletter":
+      return .lowercaseLetter
+    case "lm", "modifierletter":
+      return .modifierLetter
+    case "lo", "otherletter":
+      return .otherLetter
+    case "lt", "titlecaseletter":
+      return .titlecaseLetter
+    case "lu", "uppercaseletter":
+      return .uppercaseLetter
+    case "m", "mark", "combiningmark":
+      return .mark
+    case "mc", "spacingmark":
+      return .spacingMark
+    case "me", "enclosingmark":
+      return .enclosingMark
+    case "mn", "nonspacingmark":
+      return .nonspacingMark
+    case "n", "number":
+      return .number
+    case "nd", "decimalnumber", "digit":
+      return .decimalNumber
+    case "nl", "letternumber":
+      return .letterNumber
+    case "no", "othernumber":
+      return .otherNumber
+    case "p", "punctuation", "punct":
+      return .punctuation
+    case "pc", "connectorpunctuation":
+      return .connectorPunctuation
+    case "pd", "dashpunctuation":
+      return .dashPunctuation
+    case "pe", "closepunctuation":
+      return .closePunctuation
+    case "pf", "finalpunctuation":
+      return .finalPunctuation
+    case "pi", "initialpunctuation":
+      return .initialPunctuation
+    case "po", "otherpunctuation":
+      return .otherPunctuation
+    case "ps", "openpunctuation":
+      return .openPunctuation
+    case "s", "symbol":
+      return .symbol
+    case "sc", "currencysymbol":
+      return .currencySymbol
+    case "sk", "modifiersymbol":
+      return .modifierSymbol
+    case "sm", "mathsymbol":
+      return .mathSymbol
+    case "so", "othersymbol":
+      return .otherSymbol
+    case "z", "separator":
+      return .separator
+    case "zl", "lineseparator":
+      return .lineSeparator
+    case "zp", "paragraphseparator":
+      return .paragraphSeparator
+    case "zs", "spaceseparator":
+      return .spaceSeparator
+    default:
+      return nil
+    }
+  }
+
+  private func classifyBoolProperty(_ str: String) throws -> CharacterClass.Property? {
+    switch normalizeForCharacterPropertyMatching(str) {
+    case "alpha", "alphabetic":
+      return .letter
+    case "upper", "uppercase":
+      return .uppercase
+    case "lower", "lowercase":
+      return .lowercase
+    case "wspace", "whitespace":
+      return .whitespace
+    case "nchar", "noncharactercodepoint":
+      return .nonCharacter
+    case "di", "defaultignorablecodepoint":
+      return .defaultIgnorable
+    default:
+      return nil
+    }
+  }
+
+  private func classifyCharacterPropertyBoolValue(_ str: String) throws -> Bool {
+    switch normalizeForCharacterPropertyMatching(str) {
+    case "t", "true", "y", "yes":
+      return true
+    case "f", "false", "n", "no":
+      return false
+    default:
+      throw "Unexpected bool value \(str)"
+    }
+  }
+
+  private func classifyCharacterProperty(value: String) throws -> CharacterClass {
+    if let prop = try classifyBoolProperty(value) {
+      return .property(prop)
+    }
+    if let cat = getGeneralCategory(value) {
+      return .property(.generalCategory(cat))
+    }
+    return .property(.other(key: nil, value: .init(value)))
+  }
+
+  private func classifyCharacterProperty(key: String) throws -> (String) throws -> CharacterClass {
+    if let prop = try classifyBoolProperty(key) {
+      return {
+        let isTrue = try classifyCharacterPropertyBoolValue($0)
+        return .property(prop).withInversion(!isTrue)
+      }
+    }
+    switch normalizeForCharacterPropertyMatching(key) {
+    case "script", "sc":
+      return { .property(.script(.init($0))) }
+    case "scriptextensions", "scx":
+      return { .property(.scriptExtension(.init($0))) }
+    case "gc", "generalcategory":
+      return { value in
+        guard let cat = getGeneralCategory(value) else {
+          throw "Unknown general category '\(value)'"
+        }
+        return .property(.generalCategory(cat))
+      }
+    default:
+      return { .property(.other(key: .init(key), value: .init($0))) }
+    }
+  }
+
+  private mutating func consumeCharacterProperty() throws -> CharacterClass {
+    var lhs = ""
+    while !source.isEmpty && source.peek() != "}" && source.peek() != "=" {
+      lhs.append(source.eat())
+    }
+    if source.eat("}") {
+      return try classifyCharacterProperty(value: lhs)
+    }
+    guard source.eat("=") else {
+      throw "Expected } ending"
+    }
+    var rhs = ""
+    while !source.isEmpty && source.peek() != "}" {
+      rhs.append(source.eat())
+    }
+    guard source.eat("}") else {
+      throw "Expected } ending"
+    }
+    return try classifyCharacterProperty(key: lhs)(rhs)
+  }
+
+  private mutating func consumeNamedCharacter() throws -> CharacterClass.CharacterName {
+    var name = ""
+    while !source.isEmpty && source.peek() != "}" {
+      name.append(source.eat())
+    }
+    guard source.eat("}") else {
+      throw "Expected } ending"
+    }
+    return .init(name)
+  }
+
+  private mutating func consumeEscapedCharacterClass(
+    _ c: Character
+  ) throws -> CharacterClass? {
+    switch c {
+    case "s": return .property(.whitespace)
+    case "d": return .digit
+    case "w": return .word
+    case "h": return .horizontalWhitespace
+    case "v": return .verticalWhitespace
+    case "n": return .newline
+    case "S", "D", "W", "H", "V", "P", "N":
+      let lower = Character(c.lowercased())
+      return try consumeEscapedCharacterClass(lower)!.inverted
+    case "X":
+      return .anyGrapheme
+    case "R":
+      return .newlineSequence
+    case "p":
+      guard source.eat() == "{" else { throw "Expected '{'" }
+      let inverted = source.eat("^")
+      return try consumeCharacterProperty().withInversion(inverted)
+    case let c where c.isLetter && c.isASCII:
+      // To be consistent with PCRE, escaping unknown [a-zA-Z] characters is
+      // forbidden, but escaping other characters is a no-op.
+      throw "unexpected escape sequence \\\(c)"
+    default:
+      return nil
+    }
+  }
+
+
+  private mutating func consumeEscapedCharacter() throws -> Token.Kind {
     assert(!source.isEmpty, "Escape at end of input string")
     let nextCharacter = source.eat()
 
@@ -116,25 +338,36 @@ extension Lexer {
     case "u":
       let firstDigit = source.eat()
       if firstDigit == "{" {
-        return .unicodeScalar(consumeUnicodeScalar())
+        return .unicodeScalar(try consumeUnicodeScalar())
       } else {
-        return .unicodeScalar(consumeUnicodeScalar(
+        return .unicodeScalar(try consumeUnicodeScalar(
           firstDigit: firstDigit, digits: 4))
       }
     case "x":
       let firstDigit = source.eat()
       if firstDigit == "{" {
-        return .unicodeScalar(consumeUnicodeScalar())
+        return .unicodeScalar(try consumeUnicodeScalar())
       } else {
-        return .unicodeScalar(consumeUnicodeScalar(
+        return .unicodeScalar(try consumeUnicodeScalar(
           firstDigit: firstDigit, digits: 2))
       }
-    case "U":
-      return .unicodeScalar(consumeUnicodeScalar(digits: 8))
 
+    case "U":
+      return .unicodeScalar(try consumeUnicodeScalar(digits: 8))
+
+    case "N" where source.peek() == "{":
+      _ = source.eat()
+      if source.eat("U") && source.eat("+") {
+        return .unicodeScalar(try consumeUnicodeScalar())
+      }
+      return .characterClass(.namedCharacter(try consumeNamedCharacter()))
     default:
-      return .character(nextCharacter, isEscaped: true)
+      break
     }
+    if let cc = try consumeEscapedCharacterClass(nextCharacter) {
+      return .characterClass(cc)
+    }
+    return .character(nextCharacter, isEscaped: true)
   }
 
   private mutating func consumeIfSetOperator(_ ch: Character) -> Token.Kind? {
@@ -171,7 +404,7 @@ extension Lexer {
     return .meta(meta)
   }
 
-  private mutating func consumeNextToken() -> Token? {
+  private mutating func consumeNextToken() throws -> Token? {
     guard !source.isEmpty else { return nil }
 
     let startLoc = source.currentLoc
@@ -187,25 +420,12 @@ extension Lexer {
       return tok(meta)
     }
     if current == Token.escape {
-      return tok(consumeEscapedCharacter())
+      return tok(try consumeEscapedCharacter())
     }
     return tok(.character(current, isEscaped: false))
   }
   
-  private mutating func advance() {
-    nextToken = consumeNextToken()
+  private mutating func advance() throws {
+    nextToken = try consumeNextToken()
   }
 }
-
-
-// Can also be viewed as just a sequence of tokens. Useful for
-// testing
-extension Lexer: Sequence, IteratorProtocol {
-  typealias Element = Token
-
-  mutating func next() -> Element? {
-    defer { advance() }
-    return peek()
-  }
-}
-
