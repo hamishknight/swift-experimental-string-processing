@@ -21,12 +21,16 @@ extension AST {
     case .characterClass(var cc):
       cc.matchLevel = level
       return .characterClass(cc)
-    case .any:
-      return .any
-    case .empty:
-      return .empty
-    case .trivia:
-      return .trivia
+
+    case .any, .trivia, .quote: return self
+
+    // FIXME: Do we need to do anything here? Match level is
+    // fundamental to the interpretation of atoms, but not
+    // their representation.
+    case .atom: return self
+
+    case .customCharacterClass:
+      fatalError("TODO")
     }
   }
 }

@@ -11,7 +11,11 @@ public func compile(
   var instructions = RECode.InstructionList()
   func compileNode(_ ast: AST) {
     switch ast {
-    case .empty, .trivia: return
+    case .trivia: return
+
+    case .quote(let s):
+      s.forEach { instructions.append(.character($0)) }
+      return
 
     case .character(let c):
       instructions.append(.character(c))
@@ -226,7 +230,11 @@ public func compile(
       compileNode(last)
       instructions.append(done)
       return
+    case .atom: fatalError("FIXME")
+
+    case .customCharacterClass: fatalError()
     }
+
   }
 
   compileNode(ast)

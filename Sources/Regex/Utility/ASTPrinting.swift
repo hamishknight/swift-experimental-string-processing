@@ -52,9 +52,13 @@ extension AST {
     case .unicodeScalar(let u):   return u.halfWidthCornerQuoted
     case .characterClass(let cc): return ".characterClass(\(cc))"
     case .any: return ".any"
-    case .empty: return "".halfWidthCornerQuoted
+//    case .empty: return "".halfWidthCornerQuoted
+    case .quote(let s): return s.halfWidthCornerQuoted
+
+    case .atom: fatalError("FIXME")
 
     case .trivia: return ""
+    case .customCharacterClass: fatalError("FIXME")
     }
   }
 }

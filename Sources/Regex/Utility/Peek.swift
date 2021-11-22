@@ -7,9 +7,27 @@ protocol _Peekable {
   mutating func peek() -> Output?
   mutating func advance()
 }
+
 extension _Peekable where Self: Collection, Output == Element {
   func peek() -> Output? { self.first }
+
+  @discardableResult
+  mutating func eat(upTo: Index) -> SubSequence {
+    defer { while startIndex != upTo { eat() } }
+    return self[..<upTo]
+  }
+
+  mutating func tryEatPrefix(
+    _ f: (Output) -> Bool
+  ) -> SubSequence? {
+    guard let idx = firstIndex(where: { !f($0) }) else {
+      return self.eat(upTo: endIndex)
+    }
+    if idx == startIndex { return nil }
+    return eat(upTo: idx)
+  }
 }
+
 extension _Peekable {
   @discardableResult
   mutating func eat() -> Output {
@@ -17,11 +35,39 @@ extension _Peekable {
     defer { advance() }
     return peek().unsafelyUnwrapped
   }
+
+  mutating func advance(_ i: Int) {
+    for _ in 0..<i {
+      advance()
+    }
+  }
 }
 extension _Peekable where Output: Equatable {
   mutating func tryEat(_ c: Output) -> Bool {
     guard peek() == c else { return false }
     advance()
+    return true
+  }
+  mutating func tryEat<C: Collection>(anyOf set: C) -> Output?
+    where C.Element == Output
+  {
+    guard let c = peek(), set.contains(c) else { return nil }
+    advance()
+    return c
+  }
+  mutating func eat(asserting c: Output) {
+    assert(peek() == c)
+    eat()
+  }
+}
+extension _Peekable
+  where Self: Collection, Output == Element, Output: Equatable
+{
+  mutating func tryEat<C: Collection>(sequence c: C) -> Bool
+    where C.Element == Element
+  {
+    guard starts(with: c) else { return false }
+    advance(c.count)
     return true
   }
 }

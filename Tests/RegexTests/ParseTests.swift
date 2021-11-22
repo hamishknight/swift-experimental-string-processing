@@ -329,6 +329,60 @@ extension RegexTests {
     parseTest(
       "~~*", concat("~", .zeroOrMore(.greedy, "~")))
 
+    parseTest(
+      #"a\Q .\Eb"#,
+      concat("a", .quote(" ."), "b"))
+    parseTest(
+      #"a\Q \Q \\.\Eb"#,
+      concat("a", .quote(#" \Q \\."#), "b"))
+
+    parseTest(
+      #"a(?#. comment)b"#,
+      concat("a", "b"))
+
+    parseTest(
+      #"a{1,2}"#,
+      .quantification(.range(.greedy, 1...2), "a"))
+    parseTest(
+      #"a{,2}"#,
+      .quantification(.upToN(.greedy, 2), "a"))
+    parseTest(
+      #"a{1,}"#,
+      .quantification(.nOrMore(.greedy, 1), "a"))
+    parseTest(
+      #"a{1}"#,
+      .quantification(.exactly(.greedy, 1), "a"))
+    parseTest(
+      #"a{1,2}?"#,
+      .quantification(.range(.reluctant, 1...2), "a"))
+
+    // Named captures
+    parseTest(
+      #"a(?<label>b)c"#,
+      concat("a", .namedCapture("label", "b"), "c"))
+    parseTest(
+      #"a(?'label'b)c"#,
+      concat("a", .namedCapture("label", "b"), "c"))
+    parseTest(
+      #"a(?P<label>b)c"#,
+      concat("a", .namedCapture("label", "b"), "c"))
+    parseTest(
+      #"a(?P<label>b)c"#,
+      concat("a", .namedCapture("label", "b"), "c"))
+
+    // Other groups
+    parseTest(
+      #"a(?:b)c"#,
+      concat("a", .nonCapture("b"), "c"))
+    parseTest(
+      #"a(?|b)c"#,
+      concat("a", .nonCaptureReset("b"), "c"))
+    parseTest(
+      #"a(?>b)c"#,
+      concat("a", .atomicNonCapturing("b"), "c"))
+
+
+
     // TODO: failure tests
   }
 
