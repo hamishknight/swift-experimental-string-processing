@@ -134,6 +134,7 @@ extension Parser {
   ///
   ///     QuantOperand -> Group | CustomCharClass | Atom
   ///     Group        -> GroupStart Regex ')'
+  ///     
   mutating func parseQuantifierOperand() throws -> AST? {
     assert(!source.isEmpty)
 
@@ -241,7 +242,7 @@ public func parse<S: StringProtocol>(
   _ regex: S, _ syntax: SyntaxOptions
 ) throws -> AST where S.SubSequence == Substring
 {
-  let source = Source(regex, syntax)
+  let source = Source(String(regex), syntax)
   var parser = Parser(source)
   return try parser.parse()
 }
