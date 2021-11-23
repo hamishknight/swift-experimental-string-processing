@@ -23,14 +23,8 @@ public enum AST: ASTValue, ASTAction {
 
   case atom(Atom)
 
-  // TODO: Remove, just use atom
-  case character(Character)
-  case unicodeScalar(UnicodeScalar)
-
-  // TODO: Shouldn't we expose the syntactic structure here?
-  // TODO: Also, built-in char classes are atoms, so this
-  // should be restricted to custom. It's not clear that the model
-  // type should also be the syntactic type, but we'll see
+  // FIXME: This doesn't belong in the AST. It could be a model
+  // type produced from an AST node.
   case characterClass(CharacterClass)
 
   case customCharacterClass(
@@ -42,6 +36,26 @@ extension AST {
     .atom(.any)
   }
 }
+
+extension AST {
+  /// If this has a character class representation, whether built-in or custom, return it.
+  ///
+  /// TODO: Not sure if this the right model type, but I suspect we'll want to produce
+  /// something like this on demand
+  var characterClass: CharacterClass? {
+    switch self {
+    case .customCharacterClass:
+      fatalError("TODO")
+    case let .atom(a): return a.characterClass
+
+    // TODO: remove
+    case let .characterClass(c): return c
+
+    default: return nil
+    }
+  }
+}
+
 
 // Note that we're not yet an ASTEntity, would need to be a struct.
 // We might end up with ASTStorage which projects the nice AST type.
@@ -88,8 +102,7 @@ extension AST {
       guard let c = child.filter(f) else { return nil }
       return .quantification(q, c)
 
-    case .character, .unicodeScalar, .characterClass,
-        .any, .trivia, .quote, .atom:
+    case .characterClass, .any, .trivia, .quote, .atom:
       return f(self) ? self : nil
     }
   }

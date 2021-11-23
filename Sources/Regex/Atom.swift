@@ -343,3 +343,95 @@ public enum Reference: Hashable {
   // ?(R) (?(R)...
   case recurseWholePattern
 }
+
+extension Atom: _ASTPrintable {
+  public func _print() -> String {
+    switch self {
+    case .char(let c): return c.halfWidthCornerQuoted
+    case .scalar(let s): return s.halfWidthCornerQuoted
+    case .property:
+      fatalError("TODO")
+
+    case .escaped(let c): return "\\\(c.character)".halfWidthCornerQuoted
+
+    case .keyboardControl(_): fatalError("TODO")
+
+    case .keyboardMeta(_):
+      fatalError("TODO")
+    case .keyboardMetaControl(_):
+      fatalError("TODO")
+    case .named:
+      fatalError("TODO")
+    case .any: return "."
+    case .startOfLine: return "^"
+    case .endOfLine: return "$"
+
+    case .backreference(_):
+      fatalError("TODO")
+    case .subpattern(_):
+      fatalError("TODO")
+    case .condition(_):
+      fatalError("TODO")
+    case .trivia:
+      return ""
+    }
+  }
+
+  public func _dump() -> String {
+    _print()
+  }
+
+
+}
+
+extension Atom.EscapedBuiltin {
+  var characterClass: CharacterClass? {
+    // TODO: Hamish, can you take over?
+
+    switch self {
+    case .singleDataUnit: fatalError("TODO")
+
+    case .decimalDigit:    return .digit
+    case .notDecimalDigit: return .digit.inverted
+
+    case .horizontalWhitespace: return .horizontalWhitespace
+    case .notHorizontalWhitespace:
+      return .horizontalWhitespace.inverted
+
+    case .notNewline: fatalError("TODO")
+    case .newlineSequence: return .newlineSequence
+
+    case .whitespace:    return .whitespace
+    case .notWhitespace: return .whitespace.inverted
+
+    case .verticalTab:    return .verticalWhitespace
+    case .notVerticalTab: return .verticalWhitespace.inverted
+
+    case .wordCharacter:    return .word
+    case .notWordCharacter: return .word.inverted
+
+    default:
+      return nil
+    }
+  }
+}
+
+extension Atom {
+  var characterClass: CharacterClass? {
+    switch self {
+    case let .escaped(b): return b.characterClass
+
+    case .named: fatalError("TODO")
+
+    case .any: return .any
+
+    case .property:
+      // TODO: Would our model type for character classes include
+      // this? Or does grapheme-semantic mode complicate that?
+      return nil
+
+    default: return nil
+
+    }
+  }
+}

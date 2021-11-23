@@ -26,6 +26,17 @@ extension _Peekable where Self: Collection, Output == Element {
     if idx == startIndex { return nil }
     return eat(upTo: idx)
   }
+  mutating func tryEatPrefix(
+    maxLength: Int,
+    _ f: (Output) -> Bool
+  ) -> SubSequence? {
+
+    let pre = self.prefix(while: f).prefix(maxLength)
+    guard !pre.isEmpty else { return nil }
+
+    defer { self.advance(pre.count) }
+    return pre
+  }
 }
 
 extension _Peekable {
@@ -69,6 +80,12 @@ extension _Peekable
     guard starts(with: c) else { return false }
     advance(c.count)
     return true
+  }
+  mutating func tryEat(count: Int) -> SubSequence? {
+    let pre = self.prefix(count)
+    guard pre.count == count else { return nil }
+    defer { advance(count) }
+    return pre
   }
 }
 

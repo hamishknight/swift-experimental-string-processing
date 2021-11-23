@@ -36,6 +36,41 @@ extension Source {
     try consumeNumber(\.isHexDigit, validate: validate, radix: 16)
   }
 
+  private mutating func consumeHexNumber<Num: FixedWidthInteger>(
+    numDigits: Int
+  ) throws -> Num {
+    guard let str = tryEat(count: numDigits)?.string else {
+      throw LexicalError.misc("Expected more digits")
+    }
+    guard let i = Num(str, radix: 16) else {
+      // TODO: Or, it might have failed because of overflow,
+      // Can we tell easily?
+      throw LexicalError.expectedHexNumber(str)
+    }
+    return i
+  }
+
+  private mutating func consumeHexNumber<Num: FixedWidthInteger>(
+    digitRange: ClosedRange<Int>
+  ) throws -> Num {
+    guard let str = self.tryEatPrefix(
+      maxLength: digitRange.upperBound, \.isHexDigit)?.string
+    else {
+      throw LexicalError.expectedDigits("", expecting: digitRange)
+    }
+    guard digitRange.contains(str.count) else {
+      throw LexicalError.expectedDigits(
+        str, expecting: digitRange)
+    }
+    guard let i = Num(str, radix: 16) else {
+      // TODO: Or, it might have failed because of overflow,
+      // Can we tell easily?
+      throw LexicalError.expectedHexNumber(str)
+    }
+    return i
+  }
+
+
   /// Try to eat a number off the front.
   ///
   /// Returns: `nil` if there's no number, otherwise the number
@@ -53,7 +88,15 @@ extension Source {
   private mutating func expectUnicodeScalar(
     numDigits: Int
   ) throws -> Value<Unicode.Scalar> {
-    try expectUnicodeScalar(digitRange: numDigits...numDigits)
+    try recordLoc { src in
+      let num: UInt32 = try src.consumeHexNumber(
+        numDigits: numDigits)
+      guard let scalar = Unicode.Scalar(num) else {
+        throw LexicalError.misc(
+          "Invalid scalar value U+\(num.hexStr)")
+      }
+      return scalar
+    }
   }
 
   /// Eat a scalar value from hexadecimal notation off the front
@@ -131,8 +174,8 @@ extension Source {
       if src.tryEat("{") {
         // FIXME: Erm, PCRE parses as literal if no lowerbound...
         let amt = try src.expectRange()
-        let kind = consumeKind()
         try src.expect("}")
+        let kind = consumeKind()
         return Quantifier(amt.value, kind, nil)
       }
 

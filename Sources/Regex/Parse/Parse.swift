@@ -39,23 +39,6 @@ Lexical analysis provides the following:
  CustomCharacterClass.Start -> `lexCustomCCStart`
  CustomCharacterClass.SetOp -> `lexCustomCCBinOp`
 
- better design for "metacharacter"
-
-
- Escaped -> UniScalar | TODO
- UniScalar -> 'u{' HexDigit{1, 8}
-            | 'u' HexDigit{4}
-            | 'x{' HexDigit{1, 8}
-            | 'x' HexDigit{2}
-            | 'U' HexDigit{8}
-
-
- // TODO: Hamish, can you look over this?
- CustomCharClass -> '[' '^'? CCCComponent+ ']'
- CCCComponent    -> CharSet SetOp CharSet | Atom
- CCCBinOp        ->
-
-
 */
 
 private struct Parser {
@@ -261,7 +244,7 @@ extension Parser {
   mutating func parseCCCMembers(
     into array: inout Array<CustomCharacterClass.Member>
   ) throws {
-    fatalError()
+    fatalError("TODO")
   }
 
   /*

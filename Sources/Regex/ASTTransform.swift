@@ -14,10 +14,10 @@ extension AST {
       return .groupTransform(group, recurse(component), transform: transform)
     case .quantification(let quantifier, let component):
       return .quantification(quantifier, recurse(component))
-    case .character(let c):
-      return .character(c)
-    case .unicodeScalar(let u):
-      return .unicodeScalar(u)
+    case .atom(.char(let c)):
+      return .atom(.char(c))
+    case .atom(.scalar(let u)):
+      return .atom(.scalar(u))
     case .characterClass(var cc):
       cc.matchLevel = level
       return .characterClass(cc)

@@ -117,6 +117,8 @@ enum LexicalError: Error, Hashable {
   case expectedDigits(String, expecting: ClosedRange<Int>)
   case tooManyDigits(String)
 
+  case expectedHexNumber(String)
+
   // Expected the given character or string
   case expected(String)
 

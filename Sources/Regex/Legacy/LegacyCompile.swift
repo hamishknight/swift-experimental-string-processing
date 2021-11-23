@@ -17,11 +17,11 @@ public func compile(
       s.forEach { instructions.append(.character($0)) }
       return
 
-    case .character(let c):
+    case .atom(.char(let c)):
       instructions.append(.character(c))
       return
 
-    case .unicodeScalar(let u):
+    case .atom(.scalar(let u)):
       instructions.append(.unicodeScalar(u))
       return
 
