@@ -52,7 +52,10 @@ extension CustomCharacterClass {
                   rhs: .characterClass(.custom(getComponents(rhs))))
           )
 
-        case .atom: fatalError("FIXME")
+        case .atom(let a) where a.literalCharacterValue != nil:
+          return .character(a.literalCharacterValue!)
+
+        case .atom: fatalError("TODO")
         }
       }
     }
