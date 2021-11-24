@@ -22,7 +22,7 @@ extension AST {
       cc.matchLevel = level
       return .characterClass(cc)
 
-    case .any, .trivia, .quote: return self
+    case .any, .trivia, .quote, .empty: return self
 
     // FIXME: Do we need to do anything here? Match level is
     // fundamental to the interpretation of atoms, but not

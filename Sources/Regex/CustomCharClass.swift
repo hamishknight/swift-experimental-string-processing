@@ -41,7 +41,7 @@ extension CustomCharacterClass {
           return .range(
             lhs.literalCharacterValue! ... rhs.literalCharacterValue!
           )
-        case .atom(let a):
+        case .atom(let a) where a.characterClass != nil:
           return .characterClass(a.characterClass!)
         case .setOperation(let lhs, let op, let rhs):
           // FIXME: CharacterClass wasn't designed for set operations with
@@ -51,6 +51,8 @@ extension CustomCharacterClass {
             .init(lhs: .characterClass(.custom(getComponents(lhs))), op: op,
                   rhs: .characterClass(.custom(getComponents(rhs))))
           )
+
+        case .atom: fatalError("FIXME")
         }
       }
     }

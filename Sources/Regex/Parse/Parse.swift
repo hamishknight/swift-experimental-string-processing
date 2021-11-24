@@ -2,7 +2,7 @@
 
 Syntactic structure of a regular expression
 
- Regex           -> Alternation
+ Regex           -> '' | Alternation
  Alternation     -> Concatenation ('|' Concatenation)*
  Concatenation   -> (!'|' !')' ConcatComponent)*
  ConcatComponent -> Trivia | Quote | Quantification
@@ -74,6 +74,8 @@ extension Parser {
   ///     Alternation  -> Concatenation ('|' Concatenation)*
   ///
   mutating func parse() throws -> AST {
+    if source.isEmpty { return .empty }
+
     var result = Array<AST>(singleElement: try parseConcatenation())
     while source.tryEat("|") {
       result.append(try parseConcatenation())

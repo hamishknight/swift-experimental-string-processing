@@ -68,7 +68,7 @@ extension Slice where Base == Source {
   }
 }
 
-// MARK: - Sytax
+// MARK: - Syntax
 
 extension Source {
   var modernRanges: Bool { syntax.contains(.modernRanges) }
