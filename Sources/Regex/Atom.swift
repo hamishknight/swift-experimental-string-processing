@@ -33,7 +33,7 @@ public enum Atom: Hashable {
   /// A named set (using POSIX syntax)
   ///
   /// [:...:], [:^...:]
-  case named(POSIXSet)
+  case namedSet(POSIXSet)
 
   /// .
   case any
@@ -374,7 +374,7 @@ extension Atom: _ASTPrintable {
       fatalError("TODO")
     case .keyboardMetaControl(_):
       fatalError("TODO")
-    case .named:
+    case .namedSet:
       fatalError("TODO")
     case .any: return "."
     case .startOfLine: return "^"
@@ -433,7 +433,7 @@ extension Atom {
     switch self {
     case let .escaped(b): return b.characterClass
 
-    case .named: fatalError("TODO")
+    case .namedSet: fatalError("TODO")
 
     case .any: return .any
 
@@ -459,7 +459,7 @@ extension Atom {
     case .keyboardControl, .keyboardMeta, .keyboardMetaControl:
       fatalError("TODO")
 
-    case .property, .escaped, .named, .any, .startOfLine, .endOfLine,
+    case .property, .escaped, .namedSet, .any, .startOfLine, .endOfLine,
         .backreference, .subpattern, .condition, .trivia:
       return nil
     }

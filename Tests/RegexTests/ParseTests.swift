@@ -226,7 +226,7 @@ extension RegexTests {
     func posixSet(
       _ set: Unicode.POSIXCharacterSet, inverted: Bool = false
     ) -> Atom {
-      return .named(.init(inverted: inverted, set: set))
+      return .namedSet(.init(inverted: inverted, set: set))
     }
 
     parseTest(
