@@ -29,6 +29,8 @@ public struct CustomCharacterClass: Hashable {
 }
 
 extension CustomCharacterClass {
+  public var isInverted: Bool { start == .inverted }
+
   /// The model character class for this custom character class.
   var modelCharacterClass: CharacterClass {
     typealias Component = CharacterClass.CharacterSetComponent
@@ -59,6 +61,7 @@ extension CustomCharacterClass {
         }
       }
     }
-    return .custom(getComponents(members))
+    let cc = CharacterClass.custom(getComponents(members))
+    return self.isInverted ? cc.inverted : cc
   }
 }
