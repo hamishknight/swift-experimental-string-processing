@@ -35,6 +35,9 @@ public enum Atom: Hashable {
   /// [:...:], [:^...:]
   case namedSet(POSIXSet)
 
+  /// A named character \N{...}
+  case namedCharacter(String)
+
   /// .
   case any
 
@@ -376,6 +379,8 @@ extension Atom: _ASTPrintable {
       fatalError("TODO")
     case .namedSet:
       fatalError("TODO")
+    case .namedCharacter(let charName):
+      return "\\N{\(charName)}"
     case .any: return "."
     case .startOfLine: return "^"
     case .endOfLine: return "$"
@@ -460,7 +465,7 @@ extension Atom {
       fatalError("TODO")
 
     case .property, .escaped, .namedSet, .any, .startOfLine, .endOfLine,
-        .backreference, .subpattern, .condition, .trivia:
+        .backreference, .subpattern, .condition, .trivia, .namedCharacter:
       return nil
     }
   }
