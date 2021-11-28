@@ -413,7 +413,7 @@ extension Atom.EscapedBuiltin {
     case .notHorizontalWhitespace:
       return .horizontalWhitespace.inverted
 
-    case .notNewline: return .newlineSequence.inverted
+    case .notNewline: return .any(excludingNewlines: .anyUnicode)
     case .newlineSequence: return .newlineSequence
 
     case .whitespace:    return .whitespace

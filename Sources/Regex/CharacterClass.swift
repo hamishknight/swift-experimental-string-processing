@@ -13,10 +13,25 @@ public struct CharacterClass: Hashable {
   /// e.g \D, \S, [^abc].
   var isInverted: Bool = false
 
+  public enum NewlineMatching: Hashable {
+    /// Ignore all newlines.
+    case none
+    /// CR only.
+    case carriageReturn
+    /// LF (\n) only.
+    case lineFeed
+    /// CRLF only.
+    case carriageReturnLineFeed
+    /// CR, LF, or CRLF.
+    case anyCRLF
+    /// Any unicode newline sequence.
+    case anyUnicode
+  }
+
   // TODO: Split out builtin character classes into their own type?
   public enum Representation: Hashable {
     /// Any character
-    case any
+    case any(excludingNewlines: NewlineMatching)
     /// Any grapheme cluster
     case anyGrapheme
     /// Character.isDigit
@@ -166,8 +181,14 @@ public struct CharacterClass: Hashable {
 }
 
 extension CharacterClass {
+  public static func any(excludingNewlines: NewlineMatching) -> CharacterClass {
+    .init(cc: .any(excludingNewlines: excludingNewlines),
+          matchLevel: .graphemeCluster)
+  }
+
   public static var any: CharacterClass {
-    .init(cc: .any, matchLevel: .graphemeCluster)
+    // FIXME: Implement newline matching modes. For now, default to Unicode.
+    .any(excludingNewlines: .anyUnicode)
   }
 
   public static var anyGrapheme: CharacterClass {
