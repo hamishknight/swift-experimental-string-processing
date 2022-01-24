@@ -1231,6 +1231,37 @@ extension RegexTests {
 
     parseTest("[(*CR)]", charClass("(", "*", "C", "R", ")"))
 
+    // MARK: Oniguruma absent functions
+
+    parseTest("(?~)", absentRepeater(empty()))
+    parseTest("(?~abc)", absentRepeater(concat("a", "b", "c")))
+    parseTest("(?~a+)", absentRepeater(oneOrMore(.eager, "a")))
+    parseTest("(?~~)", absentRepeater("~"))
+    parseTest("(?~a|b|c)", absentRepeater(alt("a", "b", "c")))
+    parseTest("(?~(a))", absentRepeater(capture("a")), captures: .empty)
+    parseTest("(?~)*", zeroOrMore(.eager, absentRepeater(empty())))
+
+    parseTest("(?~|abc)", absentStopper(concat("a", "b", "c")))
+    parseTest("(?~|a+)", absentStopper(oneOrMore(.eager, "a")))
+    parseTest("(?~|~)", absentStopper("~"))
+    parseTest("(?~|(a))", absentStopper(capture("a")), captures: .empty)
+    parseTest("(?~|a){2}", exactly(.eager, 2, absentStopper("a")))
+
+    parseTest("(?~|a|b)", absentExpression("a", "b"))
+    parseTest("(?~|~|~)", absentExpression("~", "~"))
+    parseTest("(?~|(a)|(?:b))", absentExpression(capture("a"), nonCapture("b")),
+              captures: .empty)
+    parseTest("(?~|(a)|(?:(b)|c))", absentExpression(
+      capture("a"), nonCapture(alt(capture("b"), "c"))
+    ), captures: .optional(.atom()))
+    parseTest("(?~|a|b)?", zeroOrOne(.eager, absentExpression("a", "b")))
+
+    parseTest("(?~|)", absentRangeClear())
+
+    // TODO: It's not really clear what this means, but Oniguruma parses it...
+    // Maybe we should diagnose it?
+    parseTest("(?~|)+", oneOrMore(.eager, absentRangeClear()))
+
     // MARK: Parse with delimiters
 
     parseWithDelimitersTest("'/a b/'", concat("a", " ", "b"))
@@ -1325,6 +1356,14 @@ extension RegexTests {
     parseNotEqualTest("(*LIMIT_DEPTH=3)", "(*LIMIT_DEPTH=1)")
     parseNotEqualTest("(*UTF)", "(*LF)")
     parseNotEqualTest("(*LF)", "(*BSR_ANYCRLF)")
+
+    parseNotEqualTest("(?~|)", "(?~|a)")
+    parseNotEqualTest("(?~|a)", "(?~|b)")
+    parseNotEqualTest("(?~|a)", "(?~|a|)")
+    parseNotEqualTest("(?~|a|b)", "(?~|a|)")
+    parseNotEqualTest("(?~|a|b)", "(?~|a|c)")
+    parseNotEqualTest("(?~)", "(?~|)")
+    parseNotEqualTest("(?~a)", "(?~b)")
   }
 
   func testParseSourceLocations() throws {
@@ -1457,6 +1496,13 @@ extension RegexTests {
     rangeTest("(?(xxx))", range(2 ..< 7), at: {
       $0.as(AST.Conditional.self)!.condition.location
     })
+
+    // MARK: Absent functions
+
+    rangeTest("(?~a)", entireRange)
+    rangeTest("(?~|)", entireRange)
+    rangeTest("(?~|a)", entireRange)
+    rangeTest("(?~|a|b)", entireRange)
   }
 
   func testParseErrors() {
@@ -1610,5 +1656,12 @@ extension RegexTests {
 
     // TODO: This diagnostic could be better.
     diagnosticTest("(*LIMIT_DEPTH=-1", .expectedNumber("", kind: .decimal))
+
+    // MARK: Oniguruma absent functions
+
+    diagnosticTest("(?~", .expected(")"))
+    diagnosticTest("(?~|", .expected(")"))
+    diagnosticTest("(?~|a|b|c)", .tooManyAbsentExpressionChildren(3))
+    diagnosticTest("(?~||||)", .tooManyAbsentExpressionChildren(4))
   }
 }

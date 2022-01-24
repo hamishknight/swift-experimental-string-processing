@@ -43,3 +43,26 @@ extension AST.Quantification: _ASTParent {
 extension AST.GlobalMatchingOptions: _ASTParent {
   var children: [AST] { [ast] }
 }
+extension AST.Conditional: _ASTParent {
+  var children: [AST] {
+    var children: [AST] = []
+    switch condition.kind {
+    case .group(let g):
+      children.append(.group(g))
+    case .groupMatched, .recursionCheck, .groupRecursionCheck, .defineGroup,
+      .pcreVersionCheck:
+      break
+    }
+    children += [trueBranch, falseBranch]
+    return children
+  }
+}
+extension AST.AbsentFunction: _ASTParent {
+  var children: [AST] {
+    switch kind {
+    case .repeater(let a), .stopper(let a): return [a]
+    case .expression(let a, _, let c):      return [a, c]
+    case .clearer:                          return []
+    }
+  }
+}

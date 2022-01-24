@@ -31,6 +31,8 @@ enum ParseError: Error, Hashable {
   case tooManyBranchesInConditional(Int)
   case unsupportedCondition(String)
 
+  case tooManyAbsentExpressionChildren(Int)
+
   case globalMatchingOptionNotAtStart(String)
 
   case expectedASCII(Character)
@@ -113,6 +115,8 @@ extension ParseError: CustomStringConvertible {
       return "expected 2 branches in conditional, have \(i)"
     case let .unsupportedCondition(str):
       return "\(str) cannot be used as condition"
+    case let .tooManyAbsentExpressionChildren(i):
+      return "expected 2 expressions in absent expression, have \(i)"
     case let .globalMatchingOptionNotAtStart(opt):
       return "matching option '\(opt)' may only appear at the start of the regex"
     case let .unknownGroupKind(str):

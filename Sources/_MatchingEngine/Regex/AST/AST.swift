@@ -40,6 +40,8 @@ public indirect enum AST:
 
   case globalMatchingOptions(GlobalMatchingOptions)
 
+  case absentFunction(AbsentFunction)
+
   case empty(Empty)
 
   // FIXME: Move off the regex literal AST
@@ -67,6 +69,7 @@ extension AST {
     case let .atom(v):                  return v
     case let .customCharacterClass(v):  return v
     case let .empty(v):                 return v
+    case let .absentFunction(v):        return v
     case let .globalMatchingOptions(v): return v
 
     case let .groupTransform(g, _):
@@ -113,7 +116,7 @@ extension AST {
     switch self {
     case .atom(let a):
       return a.isQuantifiable
-    case .group, .conditional, .customCharacterClass:
+    case .group, .conditional, .customCharacterClass, .absentFunction:
       return true
     case .alternation, .concatenation, .quantification, .quote, .trivia,
         .empty, .groupTransform, .globalMatchingOptions:
@@ -184,6 +187,43 @@ extension AST {
     public let location: SourceLocation
 
     public init(_ location: SourceLocation) {
+      self.location = location
+    }
+  }
+
+  public struct AbsentFunction: Hashable, _ASTNode {
+    public enum Start: Hashable {
+      /// (?~|
+      case withPipe
+
+      /// (?~
+      case withoutPipe
+    }
+    public enum Kind: Hashable {
+      /// `(?~absent)`
+      case repeater(AST)
+
+      /// `(?~|absent|expr)`
+      case expression(absentee: AST, pipe: SourceLocation, expr: AST)
+
+      /// `(?~|absent)`
+      case stopper(AST)
+
+      /// `(?~|)`
+      case clearer
+    }
+    /// The location of `(?~` or `(?~|`
+    public var start: SourceLocation
+
+    public var kind: Kind
+
+    public var location: SourceLocation
+
+    public init(
+      _ kind: Kind, start: SourceLocation, location: SourceLocation
+    ) {
+      self.kind = kind
+      self.start = start
       self.location = location
     }
   }
