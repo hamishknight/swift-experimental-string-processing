@@ -127,6 +127,12 @@ extension Parser {
     if !opts.isEmpty {
       return .globalMatchingOptions(.init(ast, options: opts))
     }
+    guard source.isEmpty else {
+      if let loc = source.tryEatWithLoc(")") {
+        throw Source.LocatedError(ParseError.unbalancedEndOfGroup, loc)
+      }
+      fatalError("Unhandled termination condition")
+    }
     return ast
   }
 
