@@ -528,11 +528,11 @@ extension Source {
         return try src.expectQuoted(endingWith: "*/").value
       }
       if context.endOfLineComments, src.tryEat("#") {
-        // TODO: If we ever support multi-line regex literals, this will need
-        // to be updated to stop at a newline. Note though that PCRE specifies
-        // that the newline it matches against can be controlled by the global
-        // matching options e.g `(*CR)`, `(*ANY)`, ...
-        return src.lexUntil(\.isEmpty).value
+        // TODO: PCRE specifies that the newline it matches against can be
+        // controlled by the global matching options e.g `(*CR)`, `(*ANY)`, ...
+        return src.lexUntil {
+          $0.isEmpty || $0.tryEat("\n") || $0.tryEat("\r")
+        }.value
       }
       return nil
     }

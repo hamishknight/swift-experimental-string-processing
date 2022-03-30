@@ -512,11 +512,32 @@ public func parse<S: StringProtocol>(
   return try parser.parse()
 }
 
+/// Retrieve the default set of syntax options that a delimiter and literal
+/// contents indicates.
+fileprivate func defaultSyntaxOptions(
+  _ delim: Delimiter, contents: String
+) -> SyntaxOptions {
+  switch delim.kind {
+  case .forwardSlash:
+    // For an extended syntax forward slash e.g #/.../#, extended syntax is
+    // permitted if it spans multiple lines.
+    if delim.poundCount > 0 &&
+        contents.contains(where: { $0 == "\n" || $0 == "\r" }) {
+      return .extendedSyntax
+    }
+    return .traditional
+  case .reSingleQuote:
+    return .traditional
+  case .experimental, .rxSingleQuote:
+    return .experimental
+  }
+}
+
 /// Parse a given regex string with delimiters, inferring the syntax options
 /// from the delimiter used.
 public func parseWithDelimiters<S: StringProtocol>(
   _ regex: S
 ) throws -> AST where S.SubSequence == Substring {
   let (contents, delim) = droppingRegexDelimiters(String(regex))
-  return try parse(contents, delim.defaultSyntaxOptions)
+  return try parse(contents, defaultSyntaxOptions(delim, contents: contents))
 }
