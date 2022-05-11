@@ -43,7 +43,8 @@ public func swiftCompilerLexRegexLiteral(
   start: UnsafeRawPointer, bufferEnd: UnsafeRawPointer, mustBeRegex: Bool
 ) -> (resumePtr: UnsafeRawPointer, error: CompilerLexError?)? {
   do {
-    let (_, _, endPtr) = try lexRegex(start: start, end: bufferEnd)
+    let (_, _, endPtr) = try lexRegex(
+      start: start, end: bufferEnd, mustBeRegex: mustBeRegex)
     return (resumePtr: endPtr, error: nil)
   } catch let error as DelimiterLexError {
     if !mustBeRegex {
@@ -62,6 +63,8 @@ public func swiftCompilerLexRegexLiteral(
       // An unknown delimiter should be recovered from, as we may want to try
       // lex something else.
       return nil
+    case .willBeInvalidSyntax:
+      fatalError("Can only be produced if mustBeRegex is false")
     }
     // For now every lexer error is emitted at the starting delimiter.
     let compilerError = CompilerLexError(

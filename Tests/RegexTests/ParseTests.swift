@@ -61,6 +61,15 @@ func parseTest(
   file: StaticString = #file,
   line: UInt = #line
 ) {
+  // First try adding some delimiters and making sure we can lex.
+  let scalars = input.unicodeScalars
+  let isMultiline = scalars.contains("\n") || scalars.contains("\r")
+  let isExtended = isMultiline || scalars.contains("/")
+
+  let adjustedInput = isMultiline ? "\n\(input)\n" : input
+  delimiterLexingTest(
+    isExtended ? "#/\(adjustedInput)/#" : "/\(adjustedInput)/")
+
   let ast: AST
   do {
     ast = try parse(input, errorKind != nil ? .syntactic : .semantic, syntax)
@@ -143,25 +152,34 @@ func parseTest(
 func delimiterLexingTest(
   _ input: String, ignoreTrailing: Bool = false,
   file: StaticString = #file, line: UInt = #line
-) -> String {
-  input.withCString(encodedAs: UTF8.self) { ptr in
-    let endPtr = ptr + input.utf8.count
-    let (contents, delim, end) = try! lexRegex(
-      start: ptr, end: endPtr, delimiters: Delimiter.allDelimiters)
-    if ignoreTrailing {
-      XCTAssertNotEqual(end, endPtr, file: file, line: line)
-    } else {
-      XCTAssertEqual(end, endPtr, file: file, line: line)
+) -> String? {
+  do {
+    return try input.withCString(encodedAs: UTF8.self) { ptr in
+      let endPtr = ptr + input.utf8.count
+
+      // We set mustBeRegex to false to make sure we don't miss anything.
+      let (contents, delim, end) = try lexRegex(
+        start: ptr, end: endPtr, mustBeRegex: false,
+        delimiters: Delimiter.allDelimiters
+      )
+      if ignoreTrailing {
+        XCTAssertNotEqual(end, endPtr, file: file, line: line)
+      } else {
+        XCTAssertEqual(end, endPtr, file: file, line: line)
+      }
+
+      let rawPtr = UnsafeRawPointer(ptr)
+      let buffer = UnsafeRawBufferPointer(start: rawPtr, count: end - rawPtr)
+      let literal = String(decoding: buffer, as: UTF8.self)
+
+      let (parseContents, parseDelim) = droppingRegexDelimiters(literal)
+      XCTAssertEqual(contents, parseContents, file: file, line: line)
+      XCTAssertEqual(delim, parseDelim, file: file, line: line)
+      return literal
     }
-
-    let rawPtr = UnsafeRawPointer(ptr)
-    let buffer = UnsafeRawBufferPointer(start: rawPtr, count: end - rawPtr)
-    let literal = String(decoding: buffer, as: UTF8.self)
-
-    let (parseContents, parseDelim) = droppingRegexDelimiters(literal)
-    XCTAssertEqual(contents, parseContents, file: file, line: line)
-    XCTAssertEqual(delim, parseDelim, file: file, line: line)
-    return literal
+  } catch {
+    XCTFail("unexpected error: \(error)", file: file, line: line)
+    return nil
   }
 }
 
@@ -174,8 +192,9 @@ func parseWithDelimitersTest(
   ignoreTrailing: Bool = false, file: StaticString = #file, line: UInt = #line
 ) {
   // First try lexing.
-  let literal = delimiterLexingTest(
+  guard let literal = delimiterLexingTest(
     input, ignoreTrailing: ignoreTrailing, file: file, line: line)
+  else { return }
 
   let ast: AST.Node
   do {
@@ -280,8 +299,9 @@ func diagnosticWithDelimitersTest(
   file: StaticString = #file, line: UInt = #line
 ) {
   // First try lexing.
-  let literal = delimiterLexingTest(
+  guard let literal = delimiterLexingTest(
     input, ignoreTrailing: ignoreTrailing, file: file, line: line)
+  else { return }
 
   do {
     let orig = try parseWithDelimiters(literal, .semantic)
@@ -313,7 +333,9 @@ func delimiterLexingDiagnosticTest(
   do {
     _ = try input.withCString { ptr in
       try lexRegex(
-        start: ptr, end: ptr + input.count, delimiters: Delimiter.allDelimiters)
+        start: ptr, end: ptr + input.count, mustBeRegex: false,
+        delimiters: Delimiter.allDelimiters
+      )
     }
     XCTFail("""
       Passed, but expected error: \(expected)
@@ -794,6 +816,10 @@ extension RegexTests {
     parseTest(#"\M-\C-a"#, atom(.keyboardMetaControl("a")), throwsError: .unsupported)
     parseTest(#"\M-\C--"#, atom(.keyboardMetaControl("-")), throwsError: .unsupported)
     parseTest(#"\M-a"#, atom(.keyboardMeta("a")), throwsError: .unsupported)
+
+    // Escaped closing delimiters.
+    parseTest(#"\)"#, ")")
+    parseTest(#"[a\])]"#, charClass("a", "]", ")"))
 
     // MARK: Comments
 
@@ -1780,15 +1806,16 @@ extension RegexTests {
       "a", "{", "1", ",", "3", "}"
     ))
 
-    // Test that we cover the list of whitespace characters covered by PCRE.
+    // Test that we cover the list of whitespace characters covered by
+    // isPatternWhitespace, except \u{B} and \u{C}, which are unprintable ASCII.
     parseTest(
-      "(?x)a\t\u{A}\u{B}\u{C}\u{D}\u{85}\u{200E}\u{200F}\u{2028}\u{2029} b",
+      "(?x)a\t\u{A}\u{D}\u{85}\u{200E}\u{200F}\u{2028}\u{2029} b",
       concat(
         changeMatchingOptions(matchingOptions(adding: .extended)),
         "a", "b"
       ))
     parseTest(
-      "(?x)[a\t\u{A}\u{B}\u{C}\u{D}\u{85}\u{200E}\u{200F}\u{2028}\u{2029} b]",
+      "(?x)[a\t\u{A}\u{D}\u{85}\u{200E}\u{200F}\u{2028}\u{2029} b]",
       concat(
         changeMatchingOptions(matchingOptions(adding: .extended)),
         charClass("a", "b")
@@ -2800,6 +2827,9 @@ extension RegexTests {
     delimiterLexingDiagnosticTest("re'\r'", .unterminated)
     delimiterLexingDiagnosticTest("re'\u{7F}'", .unprintableASCII)
 
+    delimiterLexingDiagnosticTest("/(?x)\u{B}/", .unprintableASCII)
+    delimiterLexingDiagnosticTest("/(?x)\u{C}/", .unprintableASCII)
+
     // MARK: Delimiter skipping
 
     delimiterLexingDiagnosticTest("re'(?''", .unterminated)
@@ -2821,6 +2851,13 @@ extension RegexTests {
     delimiterLexingDiagnosticTest("#/a\n/#", .unterminated)
     delimiterLexingDiagnosticTest("#/\na/#", .multilineClosingNotOnNewline)
     delimiterLexingDiagnosticTest("#/\n#/#", .multilineClosingNotOnNewline)
+
+    // MARK: Closing ')' heuristic
+    delimiterLexingDiagnosticTest(#"/)/"#, .willBeInvalidSyntax)
+    delimiterLexingDiagnosticTest(#"/\()/"#, .willBeInvalidSyntax)
+    delimiterLexingDiagnosticTest(#"/(()()))/"#, .willBeInvalidSyntax)
+    delimiterLexingDiagnosticTest(#"/[a])/"#, .willBeInvalidSyntax)
+    delimiterLexingDiagnosticTest(#"/[\]])/"#, .willBeInvalidSyntax)
   }
 
   func testCompilerInterfaceDiagnostics() {

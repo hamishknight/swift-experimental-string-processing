@@ -139,7 +139,8 @@ extension RegexTests {
         let endPtr = $0 + input.utf8.count
         assert(endPtr.pointee == 0)
         guard let out = try? lexRegex(
-          start: $0, end: endPtr, delimiters: Delimiter.allDelimiters)
+          start: $0, end: endPtr, mustBeRegex: true,
+          delimiters: Delimiter.allDelimiters)
         else {
           XCTAssertNil(expected)
           return
@@ -163,7 +164,7 @@ extension RegexTests {
         let endPtr = $0 + input.utf8.count
         assert(endPtr.pointee == 0)
         do {
-          _ = try lexRegex(start: $0, end: endPtr)
+          _ = try lexRegex(start: $0, end: endPtr, mustBeRegex: true)
           XCTFail()
         } catch let e as DelimiterLexError {
           XCTAssertEqual(e.kind, .unknownDelimiter)

@@ -81,6 +81,7 @@ public struct DelimiterLexError: Error, CustomStringConvertible {
     case unknownDelimiter
     case unprintableASCII
     case multilineClosingNotOnNewline
+    case willBeInvalidSyntax
   }
 
   public var kind: Kind
@@ -100,6 +101,7 @@ public struct DelimiterLexError: Error, CustomStringConvertible {
     case .unknownDelimiter: return "unknown regex literal delimiter"
     case .unprintableASCII: return "unprintable ASCII character found in source file"
     case .multilineClosingNotOnNewline: return "closing delimiter must appear on new line"
+    case .willBeInvalidSyntax: return "invalid regex syntax"
     }
   }
 }
@@ -112,14 +114,21 @@ fileprivate struct DelimiterLexer {
   var firstNewline: UnsafeRawPointer?
   var isMultiline: Bool { firstNewline != nil }
 
+  var groupDepth = 0
+  var customCharacterClassDepth = 0
+
+  let mustBeRegex: Bool
   let delimiters: [Delimiter.Kind]
 
-  init(start: UnsafeRawPointer, end: UnsafeRawPointer,
-       delimiters: [Delimiter.Kind]) {
+  init(
+    start: UnsafeRawPointer, end: UnsafeRawPointer, mustBeRegex: Bool,
+    delimiters: [Delimiter.Kind]
+  ) {
     precondition(start <= end)
     self.start = start
     self.cursor = start
     self.end = end
+    self.mustBeRegex = mustBeRegex
     self.delimiters = delimiters
   }
 
@@ -307,29 +316,50 @@ fileprivate struct DelimiterLexer {
       // first newline.
       throw DelimiterLexError(.unterminated, resumeAt: firstNewline ?? cursor)
     }
+    let currentChar = cursor
+    advanceCursor()
+
     switch UnicodeScalar(next) {
     case let next where !next.isASCII:
       // Just advance into a UTF-8 sequence. It shouldn't matter that we'll
       // iterate through each byte as we only match against ASCII, and we
       // validate it at the end. This case is separated out so we can just deal
       // with the ASCII cases below.
-      advanceCursor()
+      break
 
     case "\n", "\r":
       guard isMultiline else {
-        throw DelimiterLexError(.unterminated, resumeAt: cursor)
+        throw DelimiterLexError(.unterminated, resumeAt: currentChar)
       }
-      advanceCursor()
 
     case "\0":
       // TODO: Warn to match the behavior of String literal lexer? Or should
       // we error as unprintable?
-      advanceCursor()
+      break
 
     case "\\" where !escaped:
       // Advance again for an escape sequence.
-      advanceCursor()
       try advance(escaped: true)
+
+    case "(" where !escaped && customCharacterClassDepth == 0:
+      groupDepth += 1
+
+    case ")" where !escaped && customCharacterClassDepth == 0:
+      guard groupDepth > 0 else {
+        if !mustBeRegex {
+          throw DelimiterLexError(.willBeInvalidSyntax, resumeAt: currentChar)
+        }
+        break
+      }
+      groupDepth -= 1
+
+    case "[" where !escaped:
+      customCharacterClassDepth += 1
+
+    case "]" where !escaped:
+      if customCharacterClassDepth > 0 {
+        customCharacterClassDepth -= 1
+      }
 
     case let next
       where !next.isPrintableASCII && !(isMultiline && next == "\t"):
@@ -339,10 +369,10 @@ fileprivate struct DelimiterLexer {
       // tabs for single-line regex literals too?
       // TODO: Ideally we would recover and continue to lex until the ending
       // delimiter.
-      throw DelimiterLexError(.unprintableASCII, resumeAt: cursor.successor())
+      throw DelimiterLexError(.unprintableASCII, resumeAt: cursor)
 
     default:
-      advanceCursor()
+      break
     }
   }
 
@@ -456,15 +486,11 @@ func droppingRegexDelimiters(_ str: String) -> (String, Delimiter) {
 /// Attempt to lex a regex literal between `start` and `end`, returning either
 /// the contents and pointer from which to resume lexing, or an error.
 func lexRegex(
-  start: UnsafeRawPointer, end: UnsafeRawPointer,
+  start: UnsafeRawPointer, end: UnsafeRawPointer, mustBeRegex: Bool,
   delimiters: [Delimiter.Kind] = Delimiter.enabledDelimiters
 ) throws -> (contents: String, Delimiter, end: UnsafeRawPointer) {
-  var lexer = DelimiterLexer(start: start, end: end, delimiters: delimiters)
+  var lexer = DelimiterLexer(
+    start: start, end: end, mustBeRegex: mustBeRegex, delimiters: delimiters
+  )
   return try lexer.lex()
-}
-
-public func lexRegex(
-  start: UnsafeRawPointer, end: UnsafeRawPointer
-) throws -> (contents: String, Delimiter, end: UnsafeRawPointer)  {
-  return try lexRegex(start: start, end: end, delimiters: Delimiter.enabledDelimiters)
 }
